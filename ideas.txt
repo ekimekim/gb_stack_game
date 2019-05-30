@@ -1,0 +1,20 @@
+stack-based asm vm
+no jumps - calls only
+instructions are visual (8x8 tile)
+
+in runtime, main function displayed on bottom row left to right as icons
+as execution proceeds, program moves right to left with current instr under cursor in middle.
+on call, current row freezes to show return point, new row added on top
+	probably needs tail call elision to avoid giant stack when recursing to loop
+	alternately: just cap height and move things off bottom
+on right, show data stack
+tech detail:
+	data stack is window
+	call stack: upon reaching top row in LY, change LCDC to swap to alt tile map
+	scroll each row individually by changing scrollx each row
+
+ideas for actual task:
+	simple: "given the input, produce the output"
+	ambitious but possibly too distracting: navigate a maze (eg. factory floor,
+	with conveyors) - sense inputs, send outputs to move/etc.
+	somewhere between - ???
