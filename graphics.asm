@@ -127,9 +127,9 @@ GraphicsInit::
 	ld [LCDStatus], A
 
 	; Put window on the right side, 3 columns showing.
-	;ld A, 17 * 8 + 7
-	xor A
+	ld A, 17 * 8 + 7
 	ld [WindowX], A
+	xor A
 	ld [WindowY], A
 
 	; Zero main and alt tile grids
