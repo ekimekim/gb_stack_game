@@ -118,9 +118,6 @@ GraphicsInit::
 	ld A, %11100100
 	ld [TileGridPalette], A
 	ld [SpritePalette0], A
-	; Inverted palette
-	ld A, %00011011
-	ld [SpritePalette1], A
 
 	; Textures into unsigned tilemap
 	ld HL, GraphicsTextures
@@ -171,9 +168,7 @@ Sprite: MACRO
 	ld A, \4
 	ld [HL+], A
 ENDM
-	Sprite 136, 84, 15, %1001000 ; top call stack (%) cursor, inverted
-	Sprite 144, 84, 15, %0000000 ; second call stack (#) cursor
-	Sprite 152, 84, 15, %0000000 ; third call stack (!) cursor
+	Sprite 136, 84, 15, 0 ; top call stack (%) cursor
 
 	; temp for now - routines into AltTileGrid
 	ld B, 0
