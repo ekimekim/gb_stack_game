@@ -1,7 +1,6 @@
 IF !DEF(_G_IOREGS)
 _G_IOREGS EQU "true"
 
-
 ; "P1" Joypad input/output. Bits 6 and 7 are unused (count low to high, so bit 7 is 128)
 ; Bits 4 and 5 are written to to "select" one of two lines.
 ; When bit 4 is set to 0, the bits 0-3 are: Right, Left, Up, Down
@@ -162,7 +161,7 @@ ScrollX EQU $ff43
 ; is drawing. Contains values 0-143 while drawing, 144-153 during VBlank.
 ; Writing to this register will set it to 0.
 ; You should probably just never touch this unless you're doing something funky.
-LCDYCoordiate EQU $ff44
+LCDYCoordinate EQU $ff44
 ; "LYC" LCD Y-coordinate comparison register. Is used when deciding whether to trigger an interrupt,
 ; see STAT register.
 LCDYCompare EQU $ff45

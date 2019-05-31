@@ -1,3 +1,4 @@
+include "ioregs.asm"
 
 Section "Stack", WRAM0
 
@@ -19,5 +20,15 @@ Start::
 	ld [LCDControl], A
 
 	; Use core stack
-	ld SP, CoreStack
+	ld SP, Stack
 
+	; Init graphics
+	call GraphicsInit
+
+	; Let's go
+	ld HL, LCDControl
+	set 7, [HL]
+
+.main
+	halt
+	jp .main
