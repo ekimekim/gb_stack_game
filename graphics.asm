@@ -229,22 +229,32 @@ VBlank:
 	; Set LYC to first routine display row.
 	ld A, [CallStackSize]
 	ld B, A
-	ld A, 18
+	ld A, 17
 	sub B
 	rla
 	rla
-	rla ; A = 8 * (18 - [CallStackSize])
+	rla
+	dec A ; A = 8 * (18 - [CallStackSize] - 1) - 1
 	ld [LCDYCompare], A
 
-	; Cache first CallStackScroll
+	; Cache first CallStackScroll. this also increments LYC another 8, which we compensated for above.
 	call GetNextCallStackScroll
 
 	ret
 
 
-; From interrupt (with jump to here) to finished critical work: 18 cycles. We have 20.
+; We get interrupted a line before we need to do our writes.
+; We need to wait at least 63 cycles (plus more if sprites in play), at most 134.
+; We arrive 4 cycles in due to the jump to here.
+; We wait such that we do our critical work in cycles 114-134.
 StatHandler::
 	push AF
+
+	; wait 105 cycles. at loop exit we're at cycle 113.
+	ld A, 26
+.waitloop
+	dec A
+	jr nz, .waitloop
 
 	; Switch background maps and disable window
 	ld A, LCDC_ALT_NO_WINDOW
@@ -260,11 +270,6 @@ StatHandler::
 
 	push HL
 	call GetNextCallStackScroll
-
-	; increment LYC by 8 for next row
-	ld A, [LCDYCompare]
-	add 8
-	ld [LCDYCompare], A
 	pop HL
 
 	pop AF
@@ -275,11 +280,18 @@ GetNextCallStackScroll:
 	ld A, [CallStackScrollsIndex]
 	ld H, HIGH(CallStackScrolls)
 	ld L, A
-	dec A
-	ret c ; return early if carry, instead of updating the index, so it doesn't go below 0.
-	ld [CallStackScrollsIndex], A ; write back updated index
-
 	ld A, [HL]
 	ld [NextCallStackScroll], A ; save looked up value
+	dec L ; decrement index
+	ret z ; return early if zero, instead of updating the index, so it doesn't go below 0.
+	; this also means we don't set up the next stat interrupt, which would collide with vblank.
+
+	ld A, L
+	ld [CallStackScrollsIndex], A ; write back updated index
+
+	; increment LYC by 8 for next row
+	ld A, [LCDYCompare]
+	add 8
+	ld [LCDYCompare], A
 
 	ret
