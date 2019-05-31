@@ -20,8 +20,8 @@ include "macros.asm"
 include "ioregs.asm"
 include "vram.asm"
 
-LCDC_MAIN_AND_WINDOW EQU %11110001
-LCDC_ALT_NO_WINDOW   EQU %11011001
+LCDC_MAIN_AND_WINDOW EQU %11110011
+LCDC_ALT_NO_WINDOW   EQU %11011011
 
 
 ; NOTE: should be RAM later
@@ -96,8 +96,10 @@ GraphicsTextures:
 
 ; 0 to 14: font symbols, placeholders for routine symbols:  !"#$%&'<>*+,-.
 include "assets/symbols.asm"
-; 15 to 31: blank
-	ds 16 * 17
+; 15: cursor
+include "assets/cursor.asm"
+; 16 to 31: blank
+	ds 16 * 16
 ; 32 up: printable ascii
 include "assets/font.asm"
 
@@ -115,6 +117,10 @@ GraphicsInit::
 	; Identity palette
 	ld A, %11100100
 	ld [TileGridPalette], A
+	ld [SpritePalette0], A
+	; Inverted palette
+	ld A, %00011011
+	ld [SpritePalette1], A
 
 	; Textures into unsigned tilemap
 	ld HL, GraphicsTextures
@@ -143,6 +149,31 @@ GraphicsInit::
 	jr nz, .zeroloop
 	cp B
 	jr nz, .zeroloop
+
+	; Zero sprites
+	ld B, 160
+	xor A
+	ld HL, SpriteTable
+.spriteloop
+	ld [HL+], A
+	dec B
+	jr nz, .spriteloop
+
+	; temp for now - hard-code cursor sprites
+	ld HL, SpriteTable
+Sprite: MACRO
+	ld A, \1
+	ld [HL+], A
+	ld A, \2
+	ld [HL+], A
+	ld A, \3
+	ld [HL+], A
+	ld A, \4
+	ld [HL+], A
+ENDM
+	Sprite 136, 84, 15, %1001000 ; top call stack (%) cursor, inverted
+	Sprite 144, 84, 15, %0000000 ; second call stack (#) cursor
+	Sprite 152, 84, 15, %0000000 ; third call stack (!) cursor
 
 	; temp for now - routines into AltTileGrid
 	ld B, 0
