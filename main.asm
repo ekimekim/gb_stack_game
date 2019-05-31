@@ -25,9 +25,18 @@ Start::
 	; Init graphics
 	call GraphicsInit
 
-	; Let's go
+	; Interrupt mask: VBlank and Stat
+	ld A, IntEnableVBlank | IntEnableLCDC
+	ld [InterruptsEnabled], A
+
+	; Turn on screen
 	ld HL, LCDControl
 	set 7, [HL]
+	; Clear pending interrupts
+	xor A
+	ld [InterruptFlags], A
+	; Go
+	ei
 
 .main
 	halt

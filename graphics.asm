@@ -5,10 +5,10 @@
 ;   The stack area on the right, showing the contents of the program's data stack.
 ;     Occupies the right-most 4 columns. Served out of rows 0-19 of the AltTileGrid,
 ;     using the window. Scrolling is expensive, done by re-rendering entire area
-;     (3x20 max, est. 400 cycles), smooth scrolling by moving WindowY up to 7 pixels.
+;     (3x18 max, est. 400 cycles), smooth scrolling by moving WindowY up to 7 pixels.
 ;   The program area at the bottom, showing the program instructions and call stack
 ;     as rows of functions, centered on the current instruction of each function
-;     (with a cursor overlaid). Served out of rows 20-31 (lowest is main function)
+;     (with a cursor overlaid). Served out of rows 18-31 (lowest is main function)
 ;     of AltTileGrid, using the background map (switching from main tile grid at border during H-blank).
 ;     Area expands to accommodate up to 6 rows, after which it scrolls for remaining 6.
 ;     Each row is scrolled individually left-right by changing ScrollX during H-blank.
@@ -37,7 +37,7 @@ CallStackScrolls:
 	db 4 * 8 - 76
 	db 0 * 8 - 76
 
-; The top 20 values of the stack, first-out first,
+; The top 18 values of the stack, first-out first,
 ; stored as 3-length ascii digits (-99 to 99), or spaces for blank slots.
 ; It is copied over every frame.
 DataStack:
@@ -46,7 +46,7 @@ DataStack:
 	db "  8"
 	db " -3"
 	db "-45"
-REPT 15
+REPT 13
 	db "   "
 ENDR
 
@@ -58,9 +58,9 @@ CallStackSize:
 
 ; Stack of routine IDs, max 12
 CallStack:
-	db "!"
-	db "#"
-	db "%"
+	db 1
+	db 3
+	db 5
 
 ; Array of 16-instruction routines (larger later)
 ; Index is routine symbol - 1
@@ -68,9 +68,11 @@ Routines:
 	; !
 	db "I5*~7#C+O       " ; output (-5 * input + #(7))
 	; "
+	ds 16
 	; #
 	db "~11%CD1RDE      " ; fib wrapper
-	; "
+	; $
+	ds 16
 	; %
 	db "U3R+2R1+UZ2R%T  " ; fib
 
@@ -110,6 +112,10 @@ SECTION "Graphics methods", ROM0
 ; Load textures, etc.
 GraphicsInit::
 
+	; Identity palette
+	ld A, %11100100
+	ld [TileGridPalette], A
+
 	; Textures into unsigned tilemap
 	ld HL, GraphicsTextures
 	ld BC, TEXTURES_SIZE
@@ -120,6 +126,12 @@ GraphicsInit::
 	ld A, %01000100 ; interrupt when LY == LYC
 	ld [LCDStatus], A
 
+	; Put window on the right side, 3 columns showing.
+	;ld A, 17 * 8 + 7
+	xor A
+	ld [WindowX], A
+	ld [WindowY], A
+
 	; Zero main and alt tile grids
 	xor A
 	ld BC, $800
@@ -127,9 +139,9 @@ GraphicsInit::
 .zeroloop
 	ld [HL+], A
 	dec BC
-	or C
+	cp C
 	jr nz, .zeroloop
-	or B
+	cp B
 	jr nz, .zeroloop
 
 	; temp for now - routines into AltTileGrid
@@ -139,7 +151,8 @@ GraphicsInit::
 	LongAddToA CallStack, HL
 	ld A, [HL] ; A = CallStack[B]
 	dec A
-	LongAddToA Routines, DE ; DE = &Routines[A-1]
+	swap A
+	LongAddToA Routines, DE ; DE = &Routines[16 * (A-1)]
 	ld A, 31
 	sub B
 	ld H, 0
@@ -180,8 +193,9 @@ VBlankHandler::
 
 VBlank:
 
-	; Unused for now, but clear ScrollX so that changes from prev frame are reset
+	; Unused for now, but clear scrolls so that changes from prev frame are reset
 	xor A
+	ld [ScrollY], A
 	ld [ScrollX], A
 
 	; Switch back to main background + window
@@ -196,7 +210,7 @@ VBlank:
 	; Draw data stack
 	ld HL, DataStack
 	ld DE, AltTileGrid ; starts in top-left
-	ld B, 20
+	ld B, 18
 .draw_data_stack
 	ld A, [HL+]
 	ld [DE], A
@@ -215,11 +229,11 @@ VBlank:
 	; Set LYC to first routine display row.
 	ld A, [CallStackSize]
 	ld B, A
-	ld A, 20
+	ld A, 18
 	sub B
 	rla
 	rla
-	rla ; A = 8 * (20 - [CallStackSize])
+	rla ; A = 8 * (18 - [CallStackSize])
 	ld [LCDYCompare], A
 
 	; Cache first CallStackScroll
@@ -228,7 +242,7 @@ VBlank:
 	ret
 
 
-; From interrupt (with jump to here) to finished critical work: 14 cycles. We have 20.
+; From interrupt (with jump to here) to finished critical work: 18 cycles. We have 20.
 StatHandler::
 	push AF
 
@@ -236,12 +250,21 @@ StatHandler::
 	ld A, LCDC_ALT_NO_WINDOW
 	ld [LCDControl], A
 
-	; Set scroll for row
+	; Set Y scroll for call stack - todo un-hardcode this later
+	ld A, 14 * 8
+	ld [ScrollY], A
+
+	; Set X scroll for row
 	ld A, [NextCallStackScroll]
 	ld [ScrollX], A
 
 	push HL
 	call GetNextCallStackScroll
+
+	; increment LYC by 8 for next row
+	ld A, [LCDYCompare]
+	add 8
+	ld [LCDYCompare], A
 	pop HL
 
 	pop AF
