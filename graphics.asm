@@ -229,16 +229,13 @@ VBlank:
 	; Set LYC to first routine display row.
 	ld A, [CallStackSize]
 	ld B, A
-	ld A, 17
+	ld A, 18
 	sub B
 	rla
 	rla
 	rla
-	dec A ; A = 8 * (18 - [CallStackSize] - 1) - 1
+	dec A ; A = 8 * (18 - [CallStackSize]) - 1
 	ld [LCDYCompare], A
-
-	; Cache first CallStackScroll. this also increments LYC another 8, which we compensated for above.
-	call GetNextCallStackScroll
 
 	ret
 
@@ -249,49 +246,58 @@ VBlank:
 ; We wait such that we do our critical work in cycles 114-134.
 StatHandler::
 	push AF
+	push HL
 
-	; wait 105 cycles. at loop exit we're at cycle 113.
-	ld A, 26
+	; up to 12 cycles.
+
+	; calculate scroll x, 13 cycles
+	ld A, [CallStackScrollsIndex]
+	ld H, HIGH(CallStackScrolls)
+	ld L, A
+	ld A, [HL]
+	ld H, A ; store calculated value in H.
+	dec L ; decrement index. set c if this was last row.
+	ld A, L
+	ld [CallStackScrollsIndex], A ; write back updated index
+
+	; increment LYC by 8 for next row, unless this is last. 13 cycles.
+	jr c, .no_update_lyc
+	ld A, [LCDYCompare]
+	add 8
+	ld [LCDYCompare], A
+	jr .after_update_lyc
+.no_update_lyc
+REPT 10
+	nop
+ENDR
+.after_update_lyc
+
+	; up to 38 cycles.
+
+	; wait 76 cycles. at loop exit we're at cycle 114.
+	ld A, 19
 .waitloop
 	dec A
 	jr nz, .waitloop
 
-	; Switch background maps and disable window
+	; Switch background maps and disable window, 5 cycles
 	ld A, LCDC_ALT_NO_WINDOW
 	ld [LCDControl], A
 
-	; Set Y scroll for call stack - todo un-hardcode this later
+	; Set Y scroll for call stack - todo un-hardcode this later. 5 cycles.
 	ld A, 14 * 8
 	ld [ScrollY], A
 
-	; Set X scroll for row
-	ld A, [NextCallStackScroll]
+	; Set X scroll for row, 4 cycles.
+	ld A, H
 	ld [ScrollX], A
 
-	push HL
-	call GetNextCallStackScroll
-	pop HL
+	; critical section done.
 
+	pop HL
 	pop AF
 	reti
 
 
 GetNextCallStackScroll:
-	ld A, [CallStackScrollsIndex]
-	ld H, HIGH(CallStackScrolls)
-	ld L, A
-	ld A, [HL]
-	ld [NextCallStackScroll], A ; save looked up value
-	dec L ; decrement index
-	ret z ; return early if zero, instead of updating the index, so it doesn't go below 0.
-	; this also means we don't set up the next stat interrupt, which would collide with vblank.
-
-	ld A, L
-	ld [CallStackScrollsIndex], A ; write back updated index
-
-	; increment LYC by 8 for next row
-	ld A, [LCDYCompare]
-	add 8
-	ld [LCDYCompare], A
-
 	ret
