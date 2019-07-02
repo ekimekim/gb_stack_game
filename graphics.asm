@@ -173,9 +173,22 @@ ENDM
 	; temp for now - routines into AltTileGrid
 	ld B, 0
 .routineloop
+	call DrawRoutine
+	inc B
+	ld A, [CallStackSize]
+	cp B
+	jr nz, .routineloop
+
+	ret
+
+
+; Draw the routine in callstack slot B to the AltTileGrid in the correct position.
+; Clobbers all but B.
+DrawRoutine:
 	ld A, B
-	LongAddToA CallStack, HL
+	LongAddToA CallStack, HL ; HL = CallStack + B
 	ld A, [HL] ; A = CallStack[B]
+	; TODO change this when routine ids are no longer indexes into 16-byte-item array
 	dec A
 	swap A
 	LongAddToA Routines, DE ; DE = &Routines[16 * (A-1)]
@@ -189,17 +202,12 @@ ENDR
 	LongAdd HL, AltTileGrid, HL ; HL = address of first tile in row
 
 	ld C, 16
-.routine_inner
+.routine_copy
 	ld A, [DE]
 	ld [HL+], A
 	inc DE
 	dec C
-	jr nz, .routine_inner
-
-	inc B
-	ld A, [CallStackSize]
-	cp B
-	jr nz, .routineloop
+	jr nz, .routine_copy
 
 	ret
 
