@@ -22,7 +22,11 @@ Start::
 	; Use core stack
 	ld SP, Stack
 
-	; Init graphics
+	; Testing code
+	call InitState
+	call UpdateDisplayData
+
+	; Init things
 	call GraphicsInit
 
 	; Interrupt mask: VBlank and Stat
