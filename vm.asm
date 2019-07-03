@@ -82,9 +82,10 @@ INITIAL_STATE_SIZE EQU _InitialStateEnd - InitialState
 ; E: rEturn
 
 
-SECTION "Test code", ROM0
+SECTION "VM Methods", ROM0
 
-InitState::
+VMInit::
+	; TODO replace test initial state with actual init
 	ld BC, INITIAL_STATE_SIZE
 	ld HL, InitialState
 	ld DE, DataStackSize
@@ -103,16 +104,96 @@ UpdateDisplayData::
 	ld [HL+], A
 	ld A, 0 * 8 - 76
 	ld [HL+], A
-	; data stack display
-	ld HL, TempDataStackDisplay
-	ld DE, DataStackDisplay
-	ld B, 15
-	Copy
+
+	; Write every value in data stack to DataStackDisplay
+
+	ld A, [DataStackSize]
+	ld B, A
+	ld HL, DataStackDisplay
+	ld DE, DataStack
+.data_stack_loop
+	ld A, [DE]
+	inc DE
+	ld C, A
+	push BC
+	push DE
+	call ValueToString
+	ld A, B
+	ld [HL+], A
+	ld A, C
+	ld [HL+], A
+	ld A, D
+	ld [HL+], A
+	pop DE
+	pop BC
+	dec B
+	jr nz, .data_stack_loop
+
 	ret
 
-TempDataStackDisplay:
-	db "-45"
-	db " -3"
-	db "  8"
-	db "  5"
-	db "  5"
+; Takes a value C and converts it to a 3-char string, returned in regs B, C, D
+; Clobbers A.
+ValueToString:
+	; First, check if it's a routine id (encoded as $7x)
+	ld A, C
+	and $f0
+	cp $70 ; set z if C of form $7x
+	jr z, .is_routine
+
+	; Check if it's negative or not to set first char ("-" or " ")
+	and $80 ; set z if positive. note that A still contains top half from above.
+	ld B, " " ; default case is space
+	jr z, .is_positive
+	; if negative, negate it and set first char as "-"
+	ld B, "-"
+	xor A
+	sub C
+	ld C, A ; C = -C
+.is_positive
+
+	call ValueToBCD ; A = BCD version of C
+	ld D, A ; temp storage
+	swap A
+	and $0f ; set z if top digit is 0
+	jr z, .leading_zero
+	add "0"
+	ld C, A ; C = non-zero digit corresponding to top nibble of D
+	jr .after_leading_zero
+.leading_zero
+	; if a leading zero, move the first char ("-" or " ") to the second char and blank the first
+	ld C, B
+	ld B, " "
+.after_leading_zero
+	ld A, D
+	and $0f
+	add "0"
+	ld D, A ; D = digit corresponding to bottom nibble of D
+	ret
+
+.is_routine
+	; Extract routine char from the bottom nibble, and add leading spaces
+	ld A, C
+	and $0f ; A = bottom nibble = routine character
+	ld B, " " ; B = " "
+	ld C, B ; C = " "
+	ret
+
+
+; Takes a value C in [0, 99] and converts it to a BCD-encoded value, returned in A.
+; Clobbers C
+ValueToBCD:
+	; BCD conversion algo:
+	;  For each bit of input (MSB first)
+	;   Double current decimal value
+	;   Add bit to the decimal value
+	; Noting that all operations on the decimal value are BCD arithmetic.
+	; Note we need to use ADC A to double and add, not RLA, as RLA doesn't set the h flag
+	; which DAA needs to work properly.
+	xor A
+	sla C ; skip first bit, we know it's 0 since input must be positive
+REPT 7
+	sla C ; put MSB of C into carry, and shift remaining bits up
+	adc A ; A = 2 * A + carry
+	daa ; fix up previous operation to be correct for BCD
+ENDR
+	ret

@@ -23,7 +23,7 @@ Start::
 	ld SP, Stack
 
 	; Testing code
-	call InitState
+	call VMInit
 	call UpdateDisplayData
 
 	; Init things
