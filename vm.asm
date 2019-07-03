@@ -95,16 +95,24 @@ VMInit::
 
 ; Write values to graphics staging data based on current state
 UpdateDisplayData::
-	; Hard-code for now
-	; call stack scrolls
-	ld HL, CallStackScrolls
-	ld A, 6 * 8 - 76
-	ld [HL+], A
-	ld A, 4 * 8 - 76
-	ld [HL+], A
-	ld A, 0 * 8 - 76
-	ld [HL+], A
-
+	; Calculate call stack scroll values
+	; Scroll position is position * 8 pixels/tile - 76 to center current position in screen
+	ld DE, CallStackScrolls
+	ld HL, CallStack + 1 ; skip routine number, start at first position value
+	ld A, [CallStackSize]
+	ld B, A
+.call_stack_loop
+	ld A, [HL+] ; A = position
+	inc HL ; HL += 2, so it's at next position
+	add A
+	add A
+	add A ; A = 8 * position
+	sub 76 ; A = 8 * position - 76
+	ld [DE], A ; write value
+	inc DE ; move DE to next scroll value
+	dec B
+	jr nz, .call_stack_loop
+	
 	; Write every value in data stack to DataStackDisplay
 
 	ld A, [DataStackSize]
