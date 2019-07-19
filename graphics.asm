@@ -139,19 +139,18 @@ GraphicsInit::
 	xor A
 	ld [DataStackDisplaySize], A
 
-	; temp for now - hard-code cursor sprites
+	; Init the execution cursor sprite.
+	; It lives in sprite slot 0, with fixed X pos.
+	; Y pos varies with call stack display.
 	ld HL, SpriteTable
-Sprite: MACRO
-	ld A, \1
-	ld [HL+], A
-	ld A, \2
-	ld [HL+], A
-	ld A, \3
-	ld [HL+], A
-	ld A, \4
-	ld [HL+], A
-ENDM
-	Sprite 136, 84, 15, 0 ; top call stack (%) cursor
+	xor A
+	ld [HL+], A ; Y = -16, ie. init to being offscreen
+	ld A, 84
+	ld [HL+], A ; X = 76, centered on screen (center pixel is at 80)
+	ld A, 15
+	ld [HL+], A ; tile = 15
+	xor A
+	ld [HL], A ; flags = 0, ie. no special flags
 
 	ret
 
@@ -303,14 +302,19 @@ VBlank:
 	dec A
 	ld [CallStackScrollsIndex], A
 
-	; Set LYC to first routine display row.
+	; Set cursor sprite Y pos to first routine display row.
+	; Set LYC to line before first routine display row.
 	ld B, C
 	ld A, 18
 	sub B
 	rla
 	rla
-	rla
-	dec A ; A = 8 * (18 - C) - 1
+	rla ; A = 8 * (18 - C) = first call stack row
+	ld B, A
+	add 16
+	ld [SpriteTable], A ; set sprite 0 Y pos to first call stack row
+	ld A, B
+	dec A ; A = row before first call stack row
 	ld [LCDYCompare], A
 
 	ret
