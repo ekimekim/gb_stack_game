@@ -18,28 +18,33 @@ include "macros.asm"
 
 SECTION "VM state", WRAM0
 
+; Note most of these vars are private. We copy them into graphics vars when
+; we want the screen to update. This seperates actual state from display, so
+; we can continue to run without messing up frames mid-render.
+
 ; Number of items in DataStack
-DataStackSize::
+DataStackSize:
 	db
 
 ; Stack of data values. -99 to 99 are numeric, 112-127 (ie. $70-$7f) are routine symbols 1-16.
 ; Grows upward.
-DataStack::
+DataStack:
 	ds DATA_STACK_MAX
 
 ; Number of items in CallStack.
 ; Grows upward.
-CallStackSize::
+CallStackSize:
 	db
 
 ; Stack of (routine ID, position in routine)
-CallStack::
+CallStack:
 	ds 2 * CALL_STACK_MAX
 
 ; For now, a 5-long array of 16-instruction routines.
 ; Later, may replace this with something more indirect so we aren't paying
 ; for space we aren't using.
 ; Index into this array is routine symbol number - 1
+; This one is fine to be public since it's immutable once runtime begins
 Routines::
 	ds 5 * 16
 
@@ -93,15 +98,18 @@ VMInit::
 	ret
 
 
-; Write values to graphics staging data based on current state
+; Write values to graphics staging data based on current state.
+; This should be done after the current frame is finished rendering
+; (up to 8 rows before vblank) to avoid concurrent access / split frame.
 UpdateDisplayData::
+
 	; Calculate call stack scroll values
 	; Scroll position is position * 8 pixels/tile - 76 to center current position in screen
 	ld DE, CallStackScrolls
 	ld HL, CallStack + 1 ; skip routine number, start at first position value
 	ld A, [CallStackSize]
 	ld B, A
-.call_stack_loop
+.call_stack_scrolls_loop
 	ld A, [HL+] ; A = position
 	inc HL ; HL += 2, so it's at next position
 	add A
@@ -111,13 +119,33 @@ UpdateDisplayData::
 	ld [DE], A ; write value
 	inc DE ; move DE to next scroll value
 	dec B
-	jr nz, .call_stack_loop
-	
-	; Write every value in data stack to DataStackDisplay
+	jr nz, .call_stack_scrolls_loop
+
+	; Update CallStackDrawState, setting each actual routine, and then setting
+	; 0 on the next one as a terminator.
+	ld HL, CallStack
+	ld DE, CallStackDrawState
+	ld A, [CallStackSize]
+	ld B, A
+.call_stack_state_loop
+	ld A, [HL+] ; A = routine id
+	inc HL ; HL += 2, so it's at next position
+	ld [DE], A ; write actual
+	inc DE
+	inc DE ; DE += 2, so it's at next position
+	dec B
+	jr z, .call_stack_state_loop
+	; finally, write 0 to next actual routine slot as terminator
+	xor A
+	ld [DE], A
+
+	; Write new DataStackDisplaySize,
+	; write every value in data stack to DataStackDisplay
 
 	ld A, [DataStackSize]
 	ld B, A
-	ld HL, DataStackDisplay
+	ld HL, DataStackDisplaySize
+	ld [HL+], A ; set DataStackDisplaySize, HL = DataStackDisplay
 	ld DE, DataStack
 .data_stack_loop
 	ld A, [DE]

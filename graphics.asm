@@ -33,13 +33,28 @@ SECTION "Graphics data", WRAM0, ALIGN[8]
 ; as required so we can quickly copy into VRAM during V/H blanks.
 
 ; Array of scroll positions (in pixels) into each row, bottom of call stack first.
-; Aligned to 8 bits for quick lookup from CallStackIndex.
+; Aligned to 8 bits for quick lookup from CallStackScrollsIndex.
 CallStackScrolls::
 	ds CALL_STACK_MAX
 
+; Array of pairs (actual, drawn) of routine ids or sentinel (0),
+; corresponding to each item in the call
+; stack (bottom of call stack first).
+; Actual is our state we are trying to reach (or 255 off the end),
+; drawn is the routine currently drawn to VRAM for that y position
+; (0 if nothing drawn).
+; We can draw at most one routine per VBlank, and we don't display
+; any higher routines in the stack until all ones up to them are drawn
+; (this is controlled by CallStackScrollsIndex).
+; Extra byte is for final sentinel. Other half of that pair is unneeded.
+CallStackDrawState::
+	ds 2 * CALL_STACK_MAX + 1
+
 ; A formatted copy of the data stack.
 ; Stored as 3-length ascii digits (-99 to 99), or a routine symbol.
-; The relevant section as per DataStackSize is copied over every frame.
+; The relevant section as per DataStackDisplaySize is copied over every frame.
+DataStackDisplaySize::
+	db
 DataStackDisplay::
 	ds 3 * DATA_STACK_MAX
 
@@ -111,6 +126,19 @@ GraphicsInit::
 	dec B
 	jr nz, .spriteloop
 
+	; Init display state - clear actual and drawn call stack routines
+	xor A
+	ld HL, CallStackDrawState
+	ld B, 2 * CALL_STACK_MAX + 1
+.draw_state_loop
+	ld [HL+], A
+	dec B
+	jr z, .draw_state_loop
+
+	; Init display state - set data stack to 0 size
+	xor A
+	ld [DataStackDisplaySize], A
+
 	; temp for now - hard-code cursor sprites
 	ld HL, SpriteTable
 Sprite: MACRO
@@ -125,25 +153,13 @@ Sprite: MACRO
 ENDM
 	Sprite 136, 84, 15, 0 ; top call stack (%) cursor
 
-	; temp for now - routines into AltTileGrid
-	ld B, 0
-.routineloop
-	call DrawRoutine
-	inc B
-	ld A, [CallStackSize]
-	cp B
-	jr nz, .routineloop
-
 	ret
 
 
-; Draw the routine in callstack slot B to the AltTileGrid in the correct position.
-; Clobbers all but B.
+; Draw the routine with id B to the AltTileGrid in the correct position.
+; Clobbers all but C.
 DrawRoutine:
 	ld A, B
-	add B ; A = 2 * B
-	LongAddToA CallStack, HL ; HL = &CallStack[B]
-	ld A, [HL] ; A = first byte of CallStack[B] = routine id
 	; TODO change this when routine ids are no longer indexes into 16-byte-item array
 	dec A
 	swap A
@@ -157,12 +173,12 @@ REPT 5
 ENDR
 	LongAdd HL, AltTileGrid, HL ; HL = address of first tile in row
 
-	ld C, 16
+	ld B, 16
 .routine_copy
 	ld A, [DE]
 	ld [HL+], A
 	inc DE
-	dec C
+	dec B
 	jr nz, .routine_copy
 
 	ret
@@ -172,15 +188,15 @@ ENDR
 ; filling in remainder with "   " if < 18.
 ; Clobbers all.
 DrawDataStack::
-	ld A, [DataStackSize]
-	ld B, A ; B = [DataStackSize]
-	add A ; A = 2 * [DataStackSize]
-	add B ; A = 3 * [DataStackSize]
-	dec A ; A = 3 * [DataStackSize] - 1
-	LongAddToA DataStackDisplay, HL ; HL = &(DataStackDisplay[DataStackSize] - 1) = last char of top value
+	ld A, [DataStackDisplaySize]
+	ld B, A ; B = [DataStackDisplaySize]
+	add A ; A = 2 * [DataStackDisplaySize]
+	add B ; A = 3 * [DataStackDisplaySize]
+	dec A ; A = 3 * [DataStackDisplaySize] - 1
+	LongAddToA DataStackDisplay, HL ; HL = &(DataStackDisplay[DataStackDisplaySize] - 1) = last char of top value
 	ld C, 18
 	ld DE, AltTileGrid + 2 ; last char of first row of 3 chars
-	inc B ; B = [DataStackSize] + 1
+	inc B ; B = [DataStackDisplaySize] + 1
 
 	; TODO when scrolling, insert blank entry for first row
 
@@ -190,7 +206,7 @@ DrawDataStack::
 	; DE = dest pointer, counts down for each char then up to next row
 	; HL = src pointer, counts down for each char
 
-	dec B ; set z if B == 0, indicating we're out of values. do this first in case [DataStackSize] == 0
+	dec B ; set z if B == 0, indicating we're out of values. do this first in case [DataStackDisplaySize] == 0
 	jr z, .clear
 
 	; Copy 3 chars
@@ -254,23 +270,47 @@ VBlank:
 	ld A, LCDC_MAIN_AND_WINDOW
 	ld [LCDControl], A
 
-	; Reset CallStackScrollsIndex
-	ld A, [CallStackSize]
-	dec A
-	ld [CallStackScrollsIndex], A
-
 	; Draw data stack to top-left of AltTileGrid
 	call DrawDataStack
 
+	; See if any routines need drawing,
+	; find how many routines in call stack to show
+	ld C, 0
+	ld HL, CallStackDrawState
+	jr .check_call_stack_draw
+
+.do_call_stack_draw
+	; by the time we get here, B = routine to draw, C = size of drawable call stack
+	call DrawRoutine
+	jr .check_call_stack_draw_break
+
+.check_call_stack_draw_loop
+	ld B, A ; B = actual routine
+	ld A, [HL+] ; A = drawn routine
+	inc C ; this level of the stack is either already good or about to be drawn
+	cp B ; set z if actual == drawn
+	jr nz, .do_call_stack_draw ; go do a draw then break if unequal
+.check_call_stack_draw
+	ld A, [HL+] ; A = next actual routine
+	and A ; set z if A == 0
+	jr z, .check_call_stack_draw_loop
+.check_call_stack_draw_break
+	; now C = size of drawable call stack
+
+	; Set CallStackScrollsIndex to first (top in stack) routine index to show.
+	; TODO vertical scroll for call stack
+	ld A, C
+	dec A
+	ld [CallStackScrollsIndex], A
+
 	; Set LYC to first routine display row.
-	ld A, [CallStackSize]
-	ld B, A
+	ld B, C
 	ld A, 18
 	sub B
 	rla
 	rla
 	rla
-	dec A ; A = 8 * (18 - [CallStackSize]) - 1
+	dec A ; A = 8 * (18 - C) - 1
 	ld [LCDYCompare], A
 
 	ret

@@ -22,12 +22,12 @@ Start::
 	; Use core stack
 	ld SP, Stack
 
-	; Testing code
-	call VMInit
-	call UpdateDisplayData
-
 	; Init things
+	call VMInit
 	call GraphicsInit
+
+	; Testing code
+	call UpdateDisplayData
 
 	; Interrupt mask: VBlank and Stat
 	ld A, IntEnableVBlank | IntEnableLCDC
