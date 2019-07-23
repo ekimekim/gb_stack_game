@@ -133,7 +133,7 @@ GraphicsInit::
 .draw_state_loop
 	ld [HL+], A
 	dec B
-	jr z, .draw_state_loop
+	jr nz, .draw_state_loop
 
 	; Init display state - set data stack to 0 size
 	xor A
@@ -155,7 +155,7 @@ GraphicsInit::
 	ret
 
 
-; Draw the routine with id B to the AltTileGrid in the correct position.
+; Draw the routine with id B to the AltTileGrid in position C - 1.
 ; Clobbers all but C.
 DrawRoutine:
 	ld A, B
@@ -163,12 +163,12 @@ DrawRoutine:
 	dec A
 	swap A
 	LongAddToA Routines, DE ; DE = &Routines[16 * (A-1)]
-	ld A, 31
-	sub B
+	ld A, 32
+	sub C
 	ld H, 0
 	ld L, A
 REPT 5
-	add HL, HL ; HL = 32 * (31 - B) = offset of first tile of row
+	add HL, HL ; HL = 32 * (31 - (C - 1)) = offset of first tile of row
 ENDR
 	LongAdd HL, AltTileGrid, HL ; HL = address of first tile in row
 
@@ -279,8 +279,12 @@ VBlank:
 	jr .check_call_stack_draw
 
 .do_call_stack_draw
-	; by the time we get here, B = routine to draw, C = size of drawable call stack
+	; by the time we get here, B = routine to draw, C = size of drawable call stack,
+	; HL = (addr of drawn routine id for this slot) + 1
+	dec HL
+	ld [HL], B ; mark routine we're about to draw as drawn
 	call DrawRoutine
+
 	jr .check_call_stack_draw_break
 
 .check_call_stack_draw_loop
@@ -288,11 +292,11 @@ VBlank:
 	ld A, [HL+] ; A = drawn routine
 	inc C ; this level of the stack is either already good or about to be drawn
 	cp B ; set z if actual == drawn
-	jr nz, .do_call_stack_draw ; go do a draw then break if unequal
+	jr nz, .do_call_stack_draw ; if unequal, go do a draw then break
 .check_call_stack_draw
 	ld A, [HL+] ; A = next actual routine
 	and A ; set z if A == 0
-	jr z, .check_call_stack_draw_loop
+	jr nz, .check_call_stack_draw_loop
 .check_call_stack_draw_break
 	; now C = size of drawable call stack
 

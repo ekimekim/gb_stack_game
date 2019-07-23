@@ -134,7 +134,7 @@ UpdateDisplayData::
 	inc DE
 	inc DE ; DE += 2, so it's at next position
 	dec B
-	jr z, .call_stack_state_loop
+	jr nz, .call_stack_state_loop
 	; finally, write 0 to next actual routine slot as terminator
 	xor A
 	ld [DE], A
