@@ -80,11 +80,12 @@ INITIAL_STATE_SIZE EQU _InitialStateEnd - InitialState
 ; C: call (routine ->)
 ; O: output (output ->)
 ; U: dUplicate (x -> x x)
-; R: roll n (kn ... k2 k1 x n -> x kn ... kn k2 k1)
+; R: roll n (kn ... k2 k1 x n -> x kn ... k2 k1)
 ; Z: return if n == 0 (n ->)
 ; T: tail call (routine ->)
 ; D: drop
 ; E: rEturn
+; /: divmod (n d -> n/d n%d)
 
 
 SECTION "VM Methods", ROM0

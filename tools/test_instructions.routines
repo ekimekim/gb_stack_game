@@ -1,0 +1,6 @@
+; Routines to feed into the simluator that exercise every instruction.
+; Input should be >= 0.
+; Output should be -2.
+! I3+%CD371R/*~O
+; Test calls and returns. Loops down the top stack value until 0.
+% 1-UZ%T
