@@ -1,0 +1,49 @@
+; zcall (f v -> _)
+; call f if v == 0
+z ZC0
+
+; while (f v -> f 0)
+; where f: (v -> v)
+; while (v != 0) { v = f(v) }
+w UZ1RU2RCwT
+
+; count (n -> n n-1 n-2 ... 1 0)
+o UZU1-oT
+
+; dup2 (x y -> x y x y)
+u U2R2RU4R1R
+
+; fuck i'm not smart enough for this
+; idea to make things a ton easier: inverse operation for roll
+; call it unroll, or better yet rename roll to "bury" and call unroll "pull"
+
+
+
+
+; rollNM (... n m -> ... n 0)
+; roll by N, M times
+r UZ1-
+
+; rollNMO (... n m o -> ...)
+; starting from O deep in the stack, roll by N, M times
+o 
+
+
+
+
+; find0 (0 x1 x2 ... xn -> 0 x1 x2 ... xn n)
+; discover how many stack values deep the first 0 value is
+f ;TODO
+
+; find0:checkN (... n -> ... r)
+; roll through top N values, push 0 if 0 found else 1
+g ;TODO
+
+; find0:checkN:rollM (... r n m -> r n)
+; roll ... by N, M times, adding 1 to r if top value != 0
+h ;TODO
+
+; map (0 x1 x2 ... xn f -> 0 y1 y2 ... yn)
+; where f: (x -> y)
+; for each value in stack down to first 0, call f with that value
+m ;TODO
