@@ -81,6 +81,7 @@ INITIAL_STATE_SIZE EQU _InitialStateEnd - InitialState
 ; O: output (output ->)
 ; U: dUplicate (x -> x x)
 ; R: roll n (kn ... k2 k1 x n -> x kn ... k2 k1)
+; P: pull n (x kn ... k2 k1 n -> kn ... k2 k1 x)
 ; Z: return if n == 0 (n ->)
 ; T: tail call (routine ->)
 ; D: drop
